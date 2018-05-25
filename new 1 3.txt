@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:util="http://www.springframework.org/schema/util" xmlns:mvc="http://www.springframework.org/schema/mvc"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:task="http://www.springframework.org/schema/task"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+    http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc.xsd
+    http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd 
+    http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd
+    http://www.springframework.org/schema/tx  http://www.springframework.org/schema/tx/spring-tx.xsd
+    http://www.springframework.org/schema/task http://www.springframework.org/schema/task/spring-task.xsd">
+
+	<context:component-scan base-package="com.neo, com.icici" />
+
+	<util:properties location="classpath:application.properties" id="application" />
+
+	<util:properties location="classpath:errorcodes.properties"	id="errorcodes" />
+
+	<util:properties location="classpath:messages.properties" id="messages" />
+
+	<util:properties location="classpath:sqlqueries.properties" id="sqlqueries" />
+
+	<mvc:annotation-driven />
+	<task:annotation-driven />
+	<mvc:default-servlet-handler />
+	<bean
+		class="org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor" />
+	<bean name="caseInsensitivePathMatcher" class="com.neo.util.CaseInsensitivePathMatcher" />
+	<bean name="handlerMapping"
+		class="org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping">
+		<property name="pathMatcher" ref="caseInsensitivePathMatcher"></property>
+	</bean>
+	<bean id="validator"
+		class="org.springframework.validation.beanvalidation.LocalValidatorFactoryBean" />
+
+	<import resource="security.xml" />
+	<context:property-placeholder location="classpath:application.properties" />
+	<bean id="messageSource"
+		class="org.springframework.context.support.ResourceBundleMessageSource">
+		<property name="basename" value="messages" />
+	</bean>
+
+	<tx:annotation-driven transaction-manager="transactionManager" />
+	<tx:annotation-driven transaction-manager="dbtTransactionManager" />
+	
+	<bean id="dataSource" class="org.springframework.jndi.JndiObjectFactoryBean">
+		<property name="jndiName" value="${jndi.name}"/></bean>
+	
+	<bean id="dbtDataSource" class="org.springframework.jndi.JndiObjectFactoryBean">
+		<property name="jndiName" value="${jndi.name.dbt}" />
+	</bean>
+	
+	
+	<bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+    	<property name="dataSource" ref="dataSource"/>
+	</bean>
+	<bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate"> 
+		<property name="dataSource" ref="dataSource"></property>
+		<qualifier value="jdbcTemplate"/>
+	</bean>
+	
+	
+	<bean id="dbtTransactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+    	<property name="dataSource" ref="dbtDataSource"/>
+    	<qualifier value="dbt" />
+	</bean>
+	<bean id="dbtJdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate"> 
+		<property name="dataSource" ref="dbtDataSource"></property>
+		<qualifier value="dbtJdbcTemplate"/> 
+	</bean>
+	
+	
+	<bean id="appUtil" class="com.neo.dao.AppUtil"></bean>
+	<bean id="singletonbean" class="com.neo.util.AppProps"
+		factory-method="getInstance" lazy-init="false">
+		<constructor-arg ref="appUtil" />
+	</bean>
+	
+	<bean
+		class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+		<property name="prefix">
+			<value>/WEB-INF/views/</value>
+		</property>
+		<property name="suffix">
+			<value>.jsp</value>
+		</property>
+	</bean>
+	<bean id="namedTemplate" class="org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate">
+        <constructor-arg ref="dataSource" />
+    </bean>
+    
+    <bean name="newBeanFactory" class="com.neo.comp.NewBeanFactoryImpl">
+		<lookup-method bean="neoCaseProcThread" name="getNewBean" />
+	</bean>
+	
+    <task:scheduler id="taskScheduler" pool-size="1" />
+
+	<task:scheduled-tasks scheduler="taskScheduler">
+		<task:scheduled ref="imageProcessScheduler" method="pickTrackerIdForProcessing"
+			fixed-delay="10000" initial-delay="10000" />
+	</task:scheduled-tasks>
+	
+    <bean id="taskExecutor"
+		class="org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor">
+		<property name="corePoolSize" value="1" />
+		<property name="maxPoolSize" value="3" />
+		<property name="queueCapacity" value="5" />
+		<property name="WaitForTasksToCompleteOnShutdown" value="false" />
+	</bean>
+	<mvc:view-controller path="/error/pageNotFound" />
+	<mvc:view-controller path="/error/internalServerError" />
+	<mvc:view-controller path="/error/accessDenied" />
+</beans>
+
+
+@RestController
+@RequestMapping(value = "/case")
+public class CaseController {
+	private static final Logger LOGGER = LoggerFactory.getLogger(CaseController.class);
+
+	@Autowired
+	SaveCaseDataService saveCaseDataService;
+	
+	EndResult endResult;
+	
+	/***
+	 * This method sends the case status for List of trackerIds 
+	 * @param caseStat
+	 * @return endResult
+	 */
+	@RequestMapping(value = "/status", method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+	public ResponseEntity<EndResult> getStatus(@Valid @RequestBody CaseStat caseStat) {
+		LOGGER.info("inside CaseController getStatus");
+		ICaptureUtilities.jsonFromObject("request /case/status ", caseStat);
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		endResult = saveCaseDataService.getCaseStatus(caseStat);
+		endResult.setToken(auth.getCredentials().toString());
+		ICaptureUtilities.jsonFromObject("response /case/status ", endResult);
+		return new ResponseEntity<EndResult>(endResult, HttpStatus.OK);
+	}
+	
+	package com.neo.util;
+
+import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.neo.dao.AppUtil;
+import com.neo.model.OmniDataDocProp;
+import com.neo.model.OmniFolderProps;
+import com.neo.model.ServerDtls;
+
+public class AppProps {
+	
+	private static final Logger LOGGER = LoggerFactory.getLogger(AppProps.class);
+
+	private volatile static AppProps INSTANCE = null;
+	
+	private static Map<String, String> paramMap = null;
+	
+	private static Map<String, OmniFolderProps> folderPropMap = null;
+	
+	private static Map<String, OmniDataDocProp> docPropMap = null;
+	
+	private static Map<String, String> sqlQueriesMap = null;
+	
+	private static Map<String, String> dbtCodeConvMap = null;
+	
+	
+	
+	private static Map<String, ServerDtls> serverDetMap = null;
+	
+
+	
+	private AppProps() {
+		LOGGER.info("AppProps constructor0 is called.");
+	}
+	
+	private static AppUtil appUtil1;
+	
+	public static AppProps getInstance() {
+		if (INSTANCE == null) {
+			synchronized (AppProps.class) {
+				if (INSTANCE == null) {
+					try {
+						LOGGER.info("1Instance is null, calling appUtil.getProps() method");
+						paramMap = appUtil1.getProps();
+						folderPropMap = appUtil1.getFolderProps();
+						docPropMap = appUtil1.getOmniDocProps();
+						sqlQueriesMap=appUtil1.getResourceProp();
+						serverDetMap=appUtil1.getServerDetails();
+						dbtCodeConvMap=appUtil1.getDBTCodeConvMap();
+					} catch (Exception e) {
+						LOGGER.error("Exception getInstance: " + e.getMessage());
+					}
+					INSTANCE = new AppProps();
+				}
+			}
+		}
+
+		return INSTANCE;
+	}
+	
+	public static AppProps getInstance(AppUtil appUtil) {
+		appUtil1 = appUtil;
+		if (INSTANCE == null) {
+			synchronized (AppProps.class) {
+				if (INSTANCE == null) {
+					try {
+						LOGGER.info("1Instance is null, calling appUtil.getProps() method");
+						paramMap = appUtil.getProps();
+						folderPropMap = appUtil1.getFolderProps();
+						docPropMap = appUtil1.getOmniDocProps();
+						sqlQueriesMap=appUtil1.getResourceProp();
+						serverDetMap=appUtil1.getServerDetails();
+						dbtCodeConvMap=appUtil1.getDBTCodeConvMap();
+					} catch (Exception e) {
+						LOGGER.error("Exception getInstance: " + e.getMessage());
+					}
+					INSTANCE = new AppProps();
+				}
+			}
+		}
+
+		return INSTANCE;
+	}
+	
+	public Map<String, String> getParamMap() {
+		return paramMap;
+	}
+	public Map<String, OmniFolderProps> getFolderPropMap() {
+		return folderPropMap;
+	}
+	public Map<String, OmniDataDocProp> getOmniDocMap() {
+		return docPropMap;
+	}
+	public Map<String, String> getSqlQueriesMap() {
+		return sqlQueriesMap;
+	}
+	public Map<String, ServerDtls> getServerDetMap() {
+		return serverDetMap;
+	}
+
+	public static Map<String, String> getDbtCodeConvMap() {
+		return dbtCodeConvMap;
+	}
+
+	public static void nullify() {
+		INSTANCE = null;
+	}
+	
+}
+
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36}.%M\(%line\) - %msg%n</pattern>
+    </encoder>
+  </appender>
+ <property resource="application.properties" />
+  <appender name="FILE"
+		class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<file>${log.base}/NeoDigital.log</file>
+		<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+			<!-- daily rollover -->
+			<fileNamePattern>${log.base}/NeoDigital.%d{yyyy-MM-dd}.%i.log
+			</fileNamePattern>
+			<timeBasedFileNamingAndTriggeringPolicy
+				class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+				<maxFileSize>2MB</maxFileSize>
+			</timeBasedFileNamingAndTriggeringPolicy>
+			<!-- keep 30 days' worth of history -->
+			<maxHistory>30</maxHistory>
+		</rollingPolicy>
+		<encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+			<Pattern>
+				%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %level %logger{35}.%M\(%line\) - %msg%n
+			</Pattern>
+		</encoder>
+	</appender>
+
+  <logger name="com.icici" level="DEBUG" />
+  <logger name="com.neo" level="DEBUG" />
+  <logger name="org.springframework" level="INFO" />
+  <!-- <logger name="org.hibernate" level="INFO" /> -->
+  <!-- <logger name="org.hibernate.type" level="TRACE" /> -->
+  <!-- <logger name="org.hibernate.SQL" level="DEBUG" /> -->
+  <logger name="org.apache.axis" level="INFO" />
+  
+<!--   <logger name="org.hibernate" level="ERROR" /> -->
+  
+
+  <root level="DEBUG">
+    <appender-ref ref="STDOUT" />
+    <appender-ref ref="FILE" />
+  </root>
+</configuration>
