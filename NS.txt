@@ -1,0 +1,35 @@
+firewall :  protect (a network or system) from unauthorized access with a firewall.
+vulnerability the quality or state of being exposed to the possibility of being attacked or harmed, either physically or emotionally.
+
+Penetration test is a simulated cyberattack against your computer system to check for exploitable vulnerabilities
+Pen testing can involve the attempted breaching of any number of application systems, (e.g., application protocol interfaces (APIs), frontend/backend servers) to uncover vulnerabilities, such as unsanitized inputs that are susceptible to code injection attacks.
+
+SQL injection is the placement of malicious code in SQL statements, via web page input.
+
+Active attacks: 
+An Active attack attempts to alter system resources or effect their operations. 
+Active attack involve some modification of the data stream or creation of false statement. 
+Types of active attacks are as following:
+	1)Masquerade –Masquerade attack takes place when one entity pretends to be different entity. 
+			A Masquerade attack involves one of the other form of active attacks.
+	2)Modification of messages –It means that some portion of a message is altered or that message is delayed or reordered to produce an unauthorised effect. 
+					For example, a message meaning “Allow JOHN to read confidential file X” is modified as “Allow Smith to read confidential file X”.
+	3) Repudiation –This attack is done by either sender or receiver. 
+			The sender or receiver can deny later that he/she has send or receive a message. 
+			For example, customer ask his Bank “To transfer an amount to someone” and later on the sender(customer) deny that he had made such a request. 
+			This is repudiation.
+	4)Replay –It involves the passive capture of a message and its subsequent the transmission to produce an authorized effect
+	Denial of Service –
+		It prevents normal use of communication facilities. 
+		This attack may have a specific target. For example, an entity may suppress all messages directed to a particular destination. 
+		Another form of service denial is the disruption of an entire network wither by disabling the network or by overloading it by messages so as to degrade performance.
+		
+Passive attacks: A Passive attack attempts to learn or make use of information from the system but does not affect system resources. 
+		The release of message content : Bob reads the content of message which Lilly sends to Jhon
+		Traffic analysis –		Bob observes the pattern of messages exchanged between Lilly and Jhon
+
+Malware – short for malicious software which is specifically designed to disrupt, damage, or gain authorized access to a computer system. 
+
+Virus – A malware which requires some form of user’s interaction to infect the user’s device.
+Worm – A malware which can enter a device without any explicit user interaction. For example, a user may be running a vulnerable network application to which an attacker can send malware. 
+		
